@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kuis Online</title>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js"></script>
+
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; }
+        #timer {
+            font-size: 30px;
+            font-weight: bold;
+            color: white;
+            background-color: red;
+            padding: 10px 20px;
+            border-radius: 10px;
+            display: inline-block;
+            margin-bottom: 20px;
+        }
+        input {
+            padding: 5px;
+            font-size: 16px;
+            width: 80%;
+            max-width: 300px;
+        }
+        #result {
+            font-size: 20px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Kuis Online</h1>
+
+    <div id="userForm">
+        <h3>Masukkan Nama Anda:</h3>
+        <input type="text" id="username" placeholder="Nama Lengkap">
+        <br><br>
+        <button onclick="startQuiz()">Mulai Kuis</button>
+    </div>
+
+    <div id="quizSection" style="display:none;">
+        <div id="timer">02:00</div>
+        <form id="quizForm">
+            <p>1. 2 + 2 = ?</p>
+            <input type="text" id="q1" name="q1">
+            
+            <p>2. Ibu kota Indonesia?</p>
+            <input type="text" id="q2" name="q2">
+            
+            <br><br>
+            <button type="button" onclick="submitQuiz()">Submit</button>
+        </form>
+        <h2 id="result"></h2>
+    </div>
+
+    <h3>Riwayat Jawaban:</h3>
+    <ul id="history"></ul>
+
+    <script>
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_PROJECT_ID.appspot.com",
+            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+
+        // Initialize Firebase
+        const app = firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore(app);
+
+        let timeLeft = 2 * 60; // 2 menit
+        let timer;
+
+        // Fungsi untuk mulai kuis
+        function startQuiz() {
+            const username = document.getElementById("username").value.trim();
+            if (username === "") {
+                alert("Masukkan nama terlebih dahulu!");
+                return;
+            }
+            document.getElementById("userForm").style.display = "none";
+            document.getElementById("quizSection").style.display = "block";
+
+            timer = setInterval(updateTimer, 1000);
+        }
+
+        function updateTimer() {
+            let minutes = Math.floor(timeLeft / 60);
+            let seconds = timeLeft % 60;
+            document.getElementById("timer").innerText = `${minutes}:${seconds < 10 ? "0" : ""}${seconds}`;
+
+            if (timeLeft <= 0) {
+                clearInterval(timer);
+                alert("Waktu habis! Jawaban dikirim.");
+                submitQuiz(); // Auto-submit saat waktu habis
+            }
+            timeLeft--;
+        }
+
+        function submitQuiz() {
+            clearInterval(timer);
+
+            // Ambil jawaban dari form
+            const answer1 = document.getElementById("q1").value.trim().toLowerCase();
+            const answer2 = document.getElementById("q2").value.trim().toLowerCase();
+
+            // Jawaban benar
+            const correctAnswers = { q1: "4", q2: "jakarta" };
+            let score = 0;
+            if (answer1 === correctAnswers.q1) score += 50;
+            if (answer2 === correctAnswers.q2) score += 50;
+
+            let resultText = `Nilai Anda: ${score}/100`;
+            document.getElementById("result").innerText = resultText;
+
+            // Menyimpan hasil ke Firestore
+            db.collection("jawaban-kuis").add({
+                username: document.getElementById("username").value,
+                answer1: answer1,
+                answer2: answer2,
+                score: score,
+                timestamp: new Date()
+            }).then(() => {
+                alert("Jawaban berhasil disimpan!");
+                updateHistory();
+            }).catch((error) => {
+                console.error("Error: ", error);
+            });
+
+            // Reset timer dan form
+            timeLeft = 2 * 60;
+            document.getElementById("timer").innerText = "02:00";
+        }
+
+        function updateHistory() {
+            // Menampilkan jawaban peserta di history
+            db.collection("jawaban-kuis").orderBy("timestamp", "desc").limit(5).get()
+                .then(querySnapshot => {
+                    const historyList = document.getElementById("history");
+                    historyList.innerHTML = ""; // Reset history
+                    querySnapshot.forEach(doc => {
+                        const data = doc.data();
+                        const li = document.createElement("li");
+                        li.textContent = `${data.username} - Skor: ${data.score}/100`;
+                        historyList.appendChild(li);
+                    });
+                })
+                .catch((error) => {
+                    console.log("Error getting documents: ", error);
+                });
+        }
+    </script>
+
+</body>
+</html>
